@@ -1,0 +1,510 @@
+---
+title: "R commands"
+author: "Yu Yuan"
+date: "2020/12/21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# load necessary packages
+library(visdat)
+library(tidyverse)
+library(foreign)
+library (lme4)
+library (lattice)
+library(sjPlot)
+library(ggpubr)
+# read data in to R 
+data.raw <- read.dta("HSE2013.dta")
+```
+
+## Abstract
+
+World Health Organization stated that the total number of people who are disturbed by overweight and obesity issues have been significantly and rapidly increased since the early 21st century, in both developing and developed countries. For investigating the potential determinants of these unpleasant problems, we focused on a data set from Health Survey for England (HSE) by the method of multilevel regression on different neighborhood areas. The results showed that socio-demographic variables, such as age and gender were significantly associated with the BMI values for England adults. Statistical evidence supports the statement that the higher the level of qualification, the less likely to be overweight and obesity.
+
+## Keywords: 
+Overweight and obesity, BMI, Variance Component Model, Likelihood Ratio test, Multilevel Regression. 
+
+
+## Introduction
+
+With the rapid development in the fields of global economy and scientific technology, the quality of human life has been continuously improved. However, the diet-related behaviors of human beings are also significantly influenced regarding the accelerated pace of life, result in a public health issues in both developing and developed countries, that is, the prevalence of overweight and obesity. People who are encountered with the problem of overweight and obesity also suffering from certain chronic and acute diseases, for instance, diabetes and heart attach. Walter et al. (2009) investigated the effect of overweight and obesity on mortality and found that its implication refers to disability-free life expectancy was associated with a higher risk in the older people [1]. Also Bjerregaard (2018) stated that childhood overweight was linked to an increased risk of type 2 diabetes in adulthood, nevertheless, the risk could be reduced by the remission of overweight before adulthood could reduce this risk [2].
+
+BMI, abbreviated from Body mass index, was the most commonly used concept for evaluating relative overweight and obesity. It was initially proposed by Adolphe Quetelet during the 19 century [3] and rephrased as the criteria of correlation between relative weight and height by Ancel Keys et al. in 1972 [4]. According to the criteria from the Centers for Disease Control and Prevention (CDC), a person whose BMI is the range between 25 and 30 are overweight, and would be classified as obese range if he or she has a BMI greater than 30. As a fraction between weight and height, the basic formula of computing BMI is straightforward as follows:
+
+
+The causes related to overweight and obesity are still a complicated issue involving multiple factors: demographic and geographic features, genetic hereditary and social culture. In general, two crucial determinants are frequently associated with overweight and obesity, that is, extravagant dietary intake and insufficient exercise. Males and younger adults were less likely to be inactive in American rural areas, result in a high prevalence of overweight and obesity, and inactive lifestyles among rural populations, according to Patterson’s research [5]. Also, Correll et al. (2010) linked the phenomenon of increasing obese and overweight with social welfare policies issued from American government [6]. 
+
+Consequently, recognizing the link between overweight and obesity and potential factors could be fundamentally necessary for protecting people from chronic or acute disease resulted from overweight and obesity, as well as improving their quality of daily life.  In this report, we worked on a dataset from Health Survey for England (HSE) conducted in 2013, which monitored trends in the nation’s health and care. The survey consists of multiple core questions and measurements in each series, such as blood pressure, height and weight measurements and analysis of blood and saliva samples.  We initiated our study by the process of data cleaning and explanatory data analysis. Then we investigated the the variations of BMI across socio-demographic characteristics by a series of multilevel models. Additionally, Likelihood ratio test was applied in our research for selecting an optimal combination of covariates for modelization. The validation of our models were eventually verified by our diagnostic plots.
+
+GitHub Repo for this study:  https://github.com/cristalyu/Determinants-of-the-Obesity-and-Overweight
+
+## Preliminary Analysis
+
+### Data source and Cleaning
+The dataset we focused on is from the Health Survey for England (HSE) implemented in 2013. 14,836 adults and teenagers aged above 16 from 732 neighborhood areas in were interviewed in this survey. It consists of 11 variables ranging from socio-demographic characteristics, such as age, gender and ethnicities, to geographic features, like neighborhood areas. Before we initiating our data analysis, we detected the variables features and missing values in the original dataset. From Figure 1, both quantitative and qualitative variables are included while several missing values could be observed as well. Regarding an unbiased estimation in later analysis, we conducted the data cleaning by removing these missing values with NA records or non-specific responses. 13,003 cases were eventually remained. 
+
+
+
+### Descriptive Statistics 
+As a response variable we were interested, we found that the distribution of BMI among this surveyed population is approximately bell-shaped as shown in Figure 2, even with a slight tend of right tail. Additionally, the distribution of the mean BMI across 732 different neighborhoods area also display a roughly normal figure. Specifically, the graphical evidence already provided us a certain conclusion that the prevalence of overweight and obesity had been overwhelming in 2013 because more than half of the surveyed population processed greater BMI than the standard line of overweight, as a fact that the mean and median values of BMI are 26.97 and 26.36, respectively.  
+
+
+For more comprehensive insight of this dataset, we summarized several basic descriptive statistics as shown in Table 1. There are approximately 60% of the surveyed adults and teenagers aged above 16 had issues of overweight and obesity. Besides the average BMI for females was slightly smaller than the one for males, however, the distribution of females would be more dispersedly spread due to its larger deviation. We were also aware of that BMI could vary within different levels of education, occupation, ethnicities, marital condition, medical history and way of transpiration. For example, Table 1 implied that the people owned cars had a larger averaged BMI than others; a single person seemed to be much thinner, however, it could be a confounder with the effect of age. On the other hand, the boxplot in Figure 3 also indicated that the BMI values were likely to increase with age, and the ethnicity of White population tended to process a greater BMI than the remaining minorities. 
+
+```{r}
+# remove na 
+# sample a subdataset 
+set.seed(233)
+id <- sample(data.raw$area, 100, replace = F)
+subdata <- subset(data.raw, area %in% id)
+vis_dat(subdata)
+
+# removing missing values
+sum(is.na(data.raw))
+sum(is.na(data.raw$bmival))
+data.rm <-na.omit(data.raw)
+dim(data.rm)
+# histogram
+hist(data.rm$bmival, breaks = 100, col = "steelblue", xlab = "BMI", xlim = c(10, 70), main = NA)
+summary(data.rm$bmival)
+
+mean(data.rm$bmival)
+median(data.rm$bmival)
+
+# BMI classification 
+n = nrow(data.rm)
+# underweight  BMI < 18.5
+n1 = length(which(data.rm$bmival < 18.5))
+p1 = n1/n
+p1
+# Normal 18.5 <= BMI < 25
+n2 = length(which(data.rm$bmival >= 18.5 & data.rm$bmival < 25))
+p2 = n2/n
+p2
+# Overweight 25 <= BMI < 30
+n3 = length(which(data.rm$bmival >= 25 & data.rm$bmival < 30))
+p3 = n3/n
+p3
+# Obesity 30 <= BMI 
+n4 = length(which(data.rm$bmival >= 30))
+p4 = n4/n
+p4
+
+# histogram by neighborhood area
+x = aggregate(data.rm$bmival, list(data.rm$area), median)
+hist(x[, 2], breaks = 100, xlab = "Mean of BMI in each neighborhood area", col = "steelblue", main = NA)
+
+# descriptive statistics
+
+# sex
+aggregate(data.rm$bmival, list(data.rm$sex), summary)
+
+# education
+aggregate(data.rm$bmival, list(data.rm$topqual3), summary)
+aggregate(data.rm$bmival, list(data.rm$topqual3), sd)
+
+# occupation
+aggregate(data.rm$bmival, list(data.rm$nssec5), summary)
+aggregate(data.rm$bmival, list(data.rm$nssec5), sd)
+as.numeric(table(data.rm$nssec5))/n
+
+# ethnic
+aggregate(data.rm$bmival, list(data.rm$ethnic), summary)
+aggregate(data.rm$bmival, list(data.rm$ethnic), sd)
+as.numeric(table(data.rm$ethnic))/n
+
+# marital
+aggregate(data.rm$bmival, list(data.rm$marital), summary)
+aggregate(data.rm$bmival, list(data.rm$marital), sd)
+as.numeric(table(data.rm$marital))/n
+
+# limit
+aggregate(data.rm$bmival, list(data.rm$limitill), summary)
+aggregate(data.rm$bmival, list(data.rm$limitill), sd)
+as.numeric(table(data.rm$limitill))/n
+
+# car
+aggregate(data.rm$bmival, list(data.rm$car), summary)
+aggregate(data.rm$bmival, list(data.rm$car), sd)
+as.numeric(table(data.rm$car))/n
+
+# statistics 
+
+summary(data.rm$bmival)
+sd(data.rm$bmival)
+
+summary(data.rm$age)
+sd(data.rm$age)
+
+table(data.rm$sex)
+
+summary(data.rm$bmival[which(data.rm$sex == "Men")])
+summary(data.rm$bmival[which(data.rm$sex == "Women")])
+
+sd(data.rm$bmival[which(data.rm$sex == "Men")])
+sd(data.rm$bmival[which(data.rm$sex == "Women")])
+
+as.numeric(table(data.rm$topqual3))/n
+
+# boxplots
+# boxplot 
+
+data.rm$agegroup <- ifelse(data.rm$age < 20, "< 20", ifelse(
+  data.rm$age >= 20 & data.rm$age < 40, "20 - 40", ifelse(
+    data.rm$age >= 40 & data.rm$age < 60, "40 - 60", ifelse(
+      data.rm$age > 60 & data.rm$age < 80, "60 - 80", ifelse(
+        data.rm$age >= 80, ">= 80", ">= 80"
+      )
+    )
+)))
+
+data.rm$agegroup <-factor(data.rm$agegroup, levels = c("< 20", "20 - 40", "40 - 60", "60 - 80", ">= 80"))
+
+p1 <- data.rm %>% ggplot(mapping = aes(group = agegroup, y = bmival, fill= agegroup)) +
+  geom_boxplot() +
+  labs(
+    x = "Age Groups",
+    y = "BMI ")
+
+
+p2 <- data.rm %>% ggplot(mapping = aes(group = sex, y = bmival, fill= sex)) +
+  geom_boxplot() +
+  labs(
+    x = "Sex",
+    y = "BMI ")
+
+p3 <- data.rm %>% ggplot(mapping = aes(group = topqual3, y = bmival, fill= topqual3)) +
+  geom_boxplot() +
+  labs(
+    x = "Education",
+    y = "BMI ")
+
+p4 <- data.rm %>% ggplot(mapping = aes(group = nssec5, y = bmival, fill= nssec5)) +
+  geom_boxplot() +
+  labs(
+    x = "Occupation",
+    y = "BMI ")
+
+p5 <- data.rm %>% ggplot(mapping = aes(group = ethnic, y = bmival, fill= ethnic)) +
+  geom_boxplot() +
+  labs(
+    x = "Ethnic",
+    y = "BMI ")
+
+p6 <- data.rm %>% ggplot(mapping = aes(group = marital, y = bmival, fill= marital)) +
+  geom_boxplot() +
+  labs(
+    x = "Marital",
+    y = "BMI ")
+
+p7 <- data.rm %>% ggplot(mapping = aes(group = limitill, y = bmival, fill= limitill)) +
+  geom_boxplot() +
+  labs(
+    x = "Illness",
+    y = "BMI ")
+
+p8 <- data.rm %>% ggplot(mapping = aes(group = car, y = bmival, fill= car)) +
+  geom_boxplot() +
+  labs(
+    x = "Car",
+    y = "BMI ")
+
+ggarrange(p1, p2, p3, p4, nrow = 2, ncol = 2)
+ggarrange(p5, p6, p7, p8, nrow = 2, ncol = 2)
+
+```
+
+## Methods
+
+In our case, the interviewee’s data is clustered and has a hierarchical structure of two levels: socio-demographic characteristics as level 1 and neighborhood areas as level 2, respectively.， then the multilevel modeling was utilized in our exploration. 
+
+### Variance Component Model 
+
+For confirming the the variation of BMI across neighborhood areas, we initiated our modelization with a variance component model as follows:
+variance component model:
+
+where  is the BMI value for th individual resident in th neighborhood area,  is the deviation of BMI values of th neighborhood area from average,  is error of model fitting. The variation of BMI values across neighborhood areas could be explained by variance partition coefficient, which could be computed as:
+
+where  is the variance between neighborhood areas (level 2), and  is the variance generated within neighborhood areas (level 1). If there did exist the effect between different neighborhood areas that contribute to the variation of BMI, then the  should be significantly greater than 0. For verifying this effect on level 2, a Likelihood Ratio (LR) test had been implemented between a variance component model and a single level linear model in which only contains an intercept term as follows: 
+
+Null model:
+
+The LR test statistic with the null hypothesis that the  could be computed by the logarithm of the fraction on the likelihood values. That is, 
+
+Then, the LR statistic  should follow a Chi-square distribution, , if the null hypothesis is true. If there is sufficient evidence to reject the null hypothesis, then the application of multilevel modeling is reasonable for this dataset, otherwise, considering the effect of neighborhoods areas as a hierarchical level might be unnecessary in this case. 
+
+### Random Intercept Model
+For certain hierarchical data, that is, confirmed variation of BMI across different neighborhood areas, a random intercept model could be derived from a variance component model by controlling fixed effects on level 1, which has a basic form as follows:
+Random intercept model:
+
+where  is the covariate matrix containing all the fixed effects by socio-demographic variables in our dataset, for example, the age (group), gender, education background and occupation levels. In order to select the “best” combination of covariates for modelization, we applied the following algorithms with LR tests. 
+
+1.	Initiate with variance component model without any explanatory variable;
+2.	Add a single fixed effect of an independent variable on variance component model (or concise model with less covariates) to generate a random intercept model as a candidate model;
+3.	Compute the LR statistic between variance component model (or concise model with less covariates) and the candidate model in step 2;
+4.	Compare the p-value of LR test with a significance level 0.05, that is, if p-value 0.05, it provides sufficient evidence to reject the null hypothesis that variance components model (or concise model with less covariates) performs better. Then we select the new model as the criterion model for next comparison. Otherwise, we keep the simpler model and consider to add another covariate if p-value is greater than 0.05;
+5.	Repeat the steps of 2 – 4 until we have a candidate model without a p-value of LR test being greater than 0.05 or the number of independent variables is greater than 5.
+
+## Results
+
+By applying R programming, we have the variance partition coefficient equal to 0.0233, implying that the differences across neighborhood areas only accounted for 2.23% of the variation in BMI. Although this number seems to be inappreciable, the result by LR test (LR statistic ) provided significantly sufficient evidence to reject the null hypotheses that there was not any random effect across neighborhood areas at a level 0.05. Therefore, the BMI did vary across the different areas in England and the utilization of multiple modeling could be appropriate in this scenario. 
+
+From Table 2, the model 5 containing variables sex, age, qualification, occupation and car is the “best” subset model by the algorithm and LR test method that we have discussed above. 
+Model 5:
+
+The regression results of the Model 5 are summarized in Table 3, with a baseline of Male adults who own a car, qualification and occupation are degree or equivalent, and professional, separately. The regression results implicate that the fixed effect of gender, age and process of car are significantly associated with the variation of BMI. Specifically, the older people tend to be sensitive to accumulate fat than the youths. The females are averagely thinner than males, resulted from the difference in physiology between women and men, or the slogan of current culture “thin is beauty”. Likewise, people who own cars would be at a higher risk of being overweight and obesity than those who do not have cars. Additionally, we noticed that the people without any qualification or lower qualification are more likely to obtain a higher BMI than those with degree or equivalent qualification. However, the interpretation for occupation could be ambiguous since several terms estimated with insignificant coefficients. Furthermore, we depicted the predicted marginal effect for these variables with 95% confidence interval in Figure 4, the expected BMI values display a random variation across different levels in each covariate. 
+
+Moreover, the diagnostic plots for Model 5 show that the residuals are randomly dispersed around the horizontal line of  without any distinct patterns. Besides, the majority of dots are affiliated with the diagonal straight line in normal Q-Q plot such that the normality assumption could be roughly satisfied, although several sample quantiles are deviated at the head and tail. Therefore, the model we selected by our algorithm and LR test is moderately appropriate for fitting and interpreting the dataset. Other than these facts, the variance partition coefficient in Model 5 gradually dropped to 1.78% if we successively added an individual level socio-demographic variable on the variance component model, implying that our selected variables did did help to explain the variation of BMI across neighborhood areas.
+
+
+
+```{r}
+nullmodel <-lmer (bmival~(1|area), data = data.rm, REML=FALSE)
+summary(nullmodel)
+
+# vpc
+0.5987/(0.5976 + 25.1334)
+# single model 
+singlemodel <- lm (bmival~1, data = data.rm)
+summary(singlemodel)
+
+# LR statistics
+
+-2* (logLik(singlemodel) - logLik(nullmodel))
+
+
+
+# Centralized the variable Age
+
+data.new = data.rm
+data.new$age = scale(data.rm$age, scale = T)
+
+
+# LR test after controlling sex 
+
+ri.sex <- lmer(bmival ~ sex + (1 | area), data = data.new, REML=FALSE)
+summary(ri.sex)
+lm.sex <- lm(bmival ~ 1 + sex, data = data.new)
+summary(lm.sex)
+# LR statistics
+logLik(lm.sex)
+logLik(ri.sex)
+-2* (logLik(lm.sex) - logLik(ri.sex))
+
+# LR statistics
+logLik(nullmodel)
+logLik(ri.sex)
+-2* (logLik(nullmodel) - logLik(ri.sex))
+
+
+
+
+# LR test after controlling age
+
+ri.age <- lmer(bmival ~ age + (1 | area), data = data.new, REML=FALSE)
+summary(ri.age)
+lm.age <- lm(bmival ~ 1 + age, data = data.new)
+summary(lm.age)
+# LR statistics
+logLik(lm.age)
+logLik(ri.age)
+-2* (logLik(lm.age) - logLik(ri.age))
+
+# LR statistics
+logLik(nullmodel)
+-2* (logLik(nullmodel) - logLik(ri.age))
+
+
+# LR test after controlling qualification
+
+ri.qua <- lmer(bmival ~ topqual3 + (1 | area), data = data.new, REML=FALSE)
+summary(ri.qua)
+lm.qua <- lm(bmival ~ 1 + topqual3, data = data.new)
+summary(lm.qua)
+# LR statistics
+logLik(lm.qua)
+logLik(ri.qua)
+-2* (logLik(lm.qua) - logLik(ri.qua))
+
+# LR statistics
+-2* (logLik(nullmodel) - logLik(ri.qua))
+
+# LR test after controlling occupation
+
+ri.oc <- lmer(bmival ~ nssec5 + (1 | area), data = data.new, REML=FALSE)
+summary(ri.oc)
+lm.oc <- lm(bmival ~ 1 + nssec5, data = data.new)
+
+# LR statistics
+logLik(lm.oc)
+logLik(ri.oc)
+-2* (logLik(lm.oc) - logLik(ri.oc))
+
+# LR statistics
+-2* (logLik(nullmodel) - logLik(ri.oc))
+
+# LR test after controlling Ethnic
+
+ri.et <- lmer(bmival ~ ethnic + (1 | area), data = data.new, REML=FALSE)
+summary(ri.et)
+lm.et <- lm(bmival ~ 1 + ethnic, data = data.new)
+
+# LR statistics
+logLik(lm.et)
+logLik(ri.et)
+-2* (logLik(lm.et) - logLik(ri.et))
+
+# LR statistics
+-2* (logLik(nullmodel) - logLik(ri.et))
+
+
+# LR test after controlling Marital
+
+ri.ma <- lmer(bmival ~ marital + (1 | area), data = data.new, REML=FALSE)
+summary(ri.ma)
+lm.ma <- lm(bmival ~ 1 +  marital, data = data.new)
+
+# LR statistics
+logLik(lm.ma)
+logLik(ri.ma)
+-2* (logLik(lm.ma) - logLik(ri.ma))
+
+# LR statistics
+-2* (logLik(nullmodel) - logLik(ri.ma))
+
+# LR test after controlling car
+
+ri.car <- lmer(bmival ~ car + (1 | area), data = data.new, REML=FALSE)
+summary(ri.car)
+lm.car <- lm(bmival ~ 1 +  car, data = data.new)
+
+# LR statistics
+logLik(lm.car)
+logLik(ri.car)
+-2* (logLik(lm.car) - logLik(ri.car))
+
+# LR statistics
+-2* (logLik(nullmodel) - logLik(ri.car))
+
+# LR test after controlling limitill
+
+ri.li <- lmer(bmival ~ limitill + (1 | area), data = data.new, REML=FALSE)
+summary(ri.li)
+lm.li <- lm(bmival ~ 1 +  limitill, data = data.new)
+
+# LR statistics
+logLik(lm.li)
+logLik(ri.li)
+-2* (logLik(lm.li) - logLik(ri.li))
+
+# LR statistics
+-2* (logLik(nullmodel) - logLik(ri.li))
+
+# model selection
+# + Sex
+model1 <- lmer(bmival ~ sex + (1 | area), data = data.new, REML=FALSE)
+summary(model1)
+0.6052/(0.6052+25.1048 )
+
+logLik(nullmodel)
+logLik(model1)
+
+LR = -2*(logLik(nullmodel) - logLik(model1))
+1 - pchisq(LR, 1)
+
+
+# + Sex + Age 
+model2 <- lmer(bmival ~ sex + age + (1 | area), data = data.new, REML=FALSE)
+summary(model2)
+0.5128/(0.5128+24.2627)
+
+logLik(model2)
+
+LR = -2*(logLik(model1) - logLik(model2))
+1 - pchisq(LR, 1)
+
+# + Sex + Age + Qualification
+model3 <- lmer(bmival ~ sex + age + topqual3 + (1 | area), data = data.new, REML=FALSE)
+summary(model3)
+0.4539/(0.4539+24.2211)
+
+logLik(model3)
+
+LR = -2*(logLik(model2) - logLik(model3))
+1 - pchisq(LR, 6)
+
+# + Sex + Age + Qualification + Occupation
+model4 <- lmer(bmival ~ sex + age + topqual3 + nssec5+ (1 | area), data = data.new, REML=FALSE)
+summary(model4)
+0.4404/(0.4404+24.1708)
+logLik(model4)
+
+LR = -2*(logLik(model3) - logLik(model4))
+1 - pchisq(LR, 5)
+
+# + Sex + Age + Qualification + Occupation + Car
+model5 <- lmer(bmival ~ sex + age + topqual3 + nssec5 + car + (1 | area), data = data.new, REML=FALSE)
+summary(model5)
+0.4377/(0.4377 + 24.1169)
+logLik(model5)
+
+a <- summary(model5)
+cbind(a$coefficients, 2 - 2 * pt(abs(a$coefficients[, 3]), df = nrow(data.new)))
+
+
+LR = -2*(logLik(model4) - logLik(model5))
+1 - pchisq(LR, 1)
+
+fit <- lm(bmival ~ sex + age + topqual3 + nssec5 + car , data = data.new)
+anova(fit, model5)
+
+logLik(model5)
+logLik(fit)
+
+-2*(logLik(fit)-logLik(model5))
+
+# residual plot 
+par(mfrow = c(1, 2))
+library(sjPlot)
+library(effects)
+
+# plot marginal effects
+
+p1 <- plot_model(model5, type = "eff", terms = "sex")
+p2 <- plot_model(model5, type = "eff", terms = "age")
+p3 <- plot_model(model5, type = "eff", terms = "topqual3") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), legend.position = "none")
+p4 <- plot_model(model5, type = "eff", terms = "nssec5") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), legend.position = "none")
+p5 <- plot_model(model5, type = "eff", terms = "car")
+
+ggarrange(p1, p5, nrow = 1, ncol = 2)
+ggarrange(p3, p4, nrow = 1, ncol = 2)
+plot_model(model5, type = "eff", terms = "age")
+
+
+
+par(mfrow = c(1,2))
+y = residuals(model5)
+x = fitted.values(model5)
+plot(x, y, col = "steelblue", xlab = "Fitted Value", ylab = "Residuals", main = "Residuals vs. Fitted Value")
+abline(h = 0, lty = 2, col = "red")
+qqnorm(x, main = "Normal Q-Q Plot")
+qqline(x, col = "steelblue", lwd = 2)
+
+y = residuals(nullmodel)
+x = fitted.values(nullmodel)
+plot(x, y, col = "steelblue", xlab = "Fitted Value", ylab = "Residuals", main = "Residuals vs. Fitted Value")
+abline(h = 0, lty = 2, col = "red")
+qqnorm(x, main = "Normal Q-Q Plot")
+qqline(x, col = "steelblue", lwd = 2)
+```
+
+## Discussions
+
+In this report, we focused on a clustered and hierarchical dataset from Health Survey for England and explored several determinants that might be associated with the BMI values across different neighborhood areas. The variation of BMI within in level 2, neighborhood areas, was initially detected by the Likelihood Ratio test between a variance component model and a null model. That is, the average BMI in each neighborhood areas were significantly different with each other, and this index seemed to be impacted by the social environment. Then we established a random intercept model by a specific algorithm of selecting variables, the “best” subset model contained 5 fixed effects: sex, age, qualification, occupation and car. The regression results indicated that male adults generally had a greater BMI values than female adults in England. Besides, the way of transportation seemed to be related with the BMI as well, specifically, people who drove cars tended to have greater BMI values, probably resulted from their physical inactivity.  Moreover, we found that the qualification level had an impact on the BMI, people obtained a senior qualification, like a degree or equivalent, were more likely to maintain a lower BMI values.
+
+Although interesting facts and conclusions have been found, further work need to be considered for improving the integrity of this study. For instance, we could transform the continuous response, BMI value, as a dichotomous variable. Specifically, we could have , if BMI ; otherwise . Besides, the regression results from R provided a warning message about singularity, a Bayesian model might be available to solve this problem. Additionally, since the original dataset contained a large number of neighborhood areas across the whole England, we may consider a spatial random effect regarding as a geographic factor, and a BYM model (Besag, York and Mollié model) could be an option for further study.
+
